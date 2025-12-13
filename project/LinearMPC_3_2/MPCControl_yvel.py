@@ -45,12 +45,13 @@ class MPCControl_yvel(MPCControl_base):
         self.dx_var = cp.Variable((nx, N + 1), name="dx")
         self.du_var = cp.Variable((nu, N), name="du")
         self.dx0_var = cp.Parameter((nx,), name="dx0")
+        self.dx_ref_var = cp.Parameter((nx,), name="dx_ref")
 
         cost = 0
         for k in range(N):
-            cost += cp.quad_form(self.dx_var[:, k], Q)
+            cost += cp.quad_form(self.dx_var[:, k]- self.dx_ref_var, Q)
             cost += cp.quad_form(self.du_var[:, k], R)
-        cost += cp.quad_form(self.dx_var[:, -1], Qf)
+        cost += cp.quad_form(self.dx_var[:, -1]- self.dx_ref_var, Qf)
 
         constraints = []
         constraints += [self.dx_var[:, 0] == self.dx0_var]
@@ -64,6 +65,15 @@ class MPCControl_yvel(MPCControl_base):
     def get_u(self, x0: np.ndarray, x_target=None, u_target=None):
         dx0 = x0 - self.xs
         self.dx0_var.value = dx0
+
+        if x_target is None:
+            x_ref = self.xs
+        else:
+            x_target = np.asarray(x_target).reshape(-1)
+            x_ref = x_target
+
+        dx_ref = x_ref - self.xs
+        self.dx_ref_var.value = dx_ref
 
         self.ocp.solve(solver=cp.PIQP)
 
