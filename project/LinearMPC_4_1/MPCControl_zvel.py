@@ -15,7 +15,7 @@ class MPCControl_zvel(MPCControl_base):
         N = self.N
         nx, nu = self.nx, self.nu
 
-        Q = 1.0 * np.eye(nx)
+        Q = 15.0 * np.eye(nx)
         R = 1.0 * np.eye(nu)
 
         #Real space constraints

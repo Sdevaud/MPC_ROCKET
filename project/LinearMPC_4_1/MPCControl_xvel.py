@@ -16,7 +16,7 @@ class MPCControl_xvel(MPCControl_base):
         nx, nu = self.nx, self.nu
 
         #Q = 10.0 * np.eye(nx)
-        Q = np.diag([100, 30, 10])
+        Q = np.diag([10, 1, 1])
         R = 1.0 * np.eye(nu)
 
         #Real space constraints
@@ -50,6 +50,9 @@ class MPCControl_xvel(MPCControl_base):
         self.du_var = cp.Variable((nu, N), name="du")
         self.dx0_var = cp.Parameter((nx,), name="dx0")
         self.dx_ref_var = cp.Parameter((nx,), name="dx_ref")
+        #Slack variable for beta
+        self.s_beta = cp.Variable((2, N), nonneg=True, name="s_beta")
+
 
         #Cost function in delta space
         cost = 0
@@ -57,11 +60,14 @@ class MPCControl_xvel(MPCControl_base):
             cost += cp.quad_form(self.dx_var[:, k]- self.dx_ref_var, Q)
             cost += cp.quad_form(self.du_var[:, k], R)
         cost += cp.quad_form(self.dx_var[:, -1]- self.dx_ref_var, Qf)
+        #Add slack to the cost
+        rho = 1e4
+        cost += rho * cp.sum(self.s_beta)
 
         constraints = []
         constraints += [self.dx_var[:, 0] == self.dx0_var]
         constraints += [self.dx_var[:, 1:] == A @ self.dx_var[:, :-1] + B @ self.du_var]
-        constraints += [X.A @ self.dx_var[:, :-1] <= X.b.reshape(-1, 1)]
+        constraints += [X.A @ self.dx_var[:, :-1] <= X.b.reshape(-1, 1)+ self.s_beta]
         constraints += [U.A @ self.du_var <= U.b.reshape(-1, 1)]
         constraints += [O_inf.A @ self.dx_var[:, -1] <= O_inf.b.reshape(-1, 1)]
 

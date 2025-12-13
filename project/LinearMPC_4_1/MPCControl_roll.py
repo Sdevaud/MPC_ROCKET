@@ -16,7 +16,7 @@ class MPCControl_roll(MPCControl_base):
         nx, nu = self.nx, self.nu
 
         #Q = 10.0 * np.eye(nx)
-        Q = np.diag([100, 10])
+        Q = np.diag([10, 1])
         R = 1.0 * np.eye(nu)
 
         #Real input constraints
