@@ -23,30 +23,33 @@ class MPCControl_yvel(MPCControl_base):
         m = np.array([0.26, 0.26])
         U_real = Polyhedron.from_Hrep(M, m)
 
-        # |alpha| <= 0.1745 (alpha is reduced index 1)
+        #|alpha| <= 0.1745
         F = np.array([[0.0, 1.0, 0.0],
                       [0.0, -1.0, 0.0]])
         f = np.array([0.1745, 0.1745])
         X_real = Polyhedron.from_Hrep(F, f)
 
+        #Delta space constraints
         xs = self.xs.reshape(-1)
         us = self.us.reshape(-1)
 
-        # Shift to DELTA constraints
         X = Polyhedron.from_Hrep(X_real.A, X_real.b - X_real.A @ xs)
         U = Polyhedron.from_Hrep(U_real.A, U_real.b - U_real.A @ us)
 
+        #Terminal controller and terminal set in delta space
         K, Qf, _ = dlqr(A, B, Q, R)
         K = -K
         A_cl = A + B @ K
         KU = Polyhedron.from_Hrep(U.A @ K, U.b)
         O_inf = self.max_invariant_set(A_cl, X.intersect(KU))
 
+        #Variables in delta space
         self.dx_var = cp.Variable((nx, N + 1), name="dx")
         self.du_var = cp.Variable((nu, N), name="du")
         self.dx0_var = cp.Parameter((nx,), name="dx0")
         self.dx_ref_var = cp.Parameter((nx,), name="dx_ref")
 
+        #Cost function in delta space
         cost = 0
         for k in range(N):
             cost += cp.quad_form(self.dx_var[:, k]- self.dx_ref_var, Q)
@@ -63,6 +66,7 @@ class MPCControl_yvel(MPCControl_base):
         self.ocp = cp.Problem(cp.Minimize(cost), constraints)
 
     def get_u(self, x0: np.ndarray, x_target=None, u_target=None):
+        #delta space solving
         dx0 = x0 - self.xs
         self.dx0_var.value = dx0
 
@@ -86,6 +90,7 @@ class MPCControl_yvel(MPCControl_base):
         dx_traj = self.dx_var.value
         du_traj = self.du_var.value
 
+        #Convert back to real space
         x_traj = dx_traj + self.xs.reshape(-1, 1)
         u_traj = du_traj + self.us.reshape(-1, 1)
         u0 = u_traj[:, 0]
