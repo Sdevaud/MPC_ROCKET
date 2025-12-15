@@ -23,6 +23,8 @@ class NmpcCtrl:
         self.rocket = rocket
         self.H = H
         self.N = N
+        self.nx = np.size(xs)
+        self.nu = np.size(us)
         self.xs = xs
         self.us = us
 
@@ -32,17 +34,14 @@ class NmpcCtrl:
 
     def _setup_controller(self) -> None:
 
-        nx = 12
-        nu = 4
+        nx = self.nx
+        nu = self.nu
         N = self.N
         H = self.H
 
         opti = ca.Opti()
 
-        # ---- parameters ----
         self.x0_param = opti.parameter(nx)
-
-        # ---- decision variables ----
         self.X = opti.variable(nx, N + 1)
         self.U = opti.variable(nu, N)
 
@@ -60,10 +59,8 @@ class NmpcCtrl:
             x_next = self.X[:, k] + H * self.f(self.X[:, k], self.U[:, k])
             opti.subject_to(self.X[:, k + 1] == x_next)
 
-            # ground constraint (z >= 0)
+            # satate constraint |z| > 0 and |beta| < 80 deg
             opti.subject_to(self.X[11, k] >= 0)
-
-            # Euler singularity avoidance
             opti.subject_to(opti.bounded(-beta_max, self.X[4, k], beta_max))
 
             # input constraints
@@ -107,8 +104,7 @@ class NmpcCtrl:
         # ---- solver ----
         opti.solver(
             "ipopt",
-            {"expand": True},
-            {"print_level": 0, "max_iter": 100}
+            {"expand": True}
         )
         
         self.ocp = opti
