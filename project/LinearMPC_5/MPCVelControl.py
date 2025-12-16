@@ -5,7 +5,7 @@ from src.rocket import Rocket
 from .MPCControl_roll import MPCControl_roll
 from .MPCControl_xvel import MPCControl_xvel
 from .MPCControl_yvel import MPCControl_yvel
-from .MPCControl_zvel import MPCControl_zvel
+from .MPCControl_zvel_copy import MPCControl_zvel
 
 
 class MPCVelControl:

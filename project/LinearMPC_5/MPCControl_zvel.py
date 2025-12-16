@@ -29,13 +29,12 @@ class MPCControl_zvel(MPCControl_base):
         us = self.us.reshape(-1)
         U = Polyhedron.from_Hrep(U_real.A, U_real.b - U_real.A @ us)
 
-        # Terminal cost; terminal set removed in Part 5.1
+        # Terminal cost
         _, Qf, _ = dlqr(A, B, Q, R)
 
         # Delta MPC vars
         self.dx_var = cp.Variable((nx, N + 1), name="dx")
         self.du_var = cp.Variable((nu, N), name="du")
-
         self.dx0_var = cp.Parameter((nx,), name="dx0")
         self.dx_ref_var = cp.Parameter((nx,), name="dx_ref")
 
