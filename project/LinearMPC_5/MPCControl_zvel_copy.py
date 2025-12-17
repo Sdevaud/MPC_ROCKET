@@ -149,8 +149,8 @@ class MPCControl_zvel(MPCControl_base):
         self.C_hat = np.hstack([np.eye(nx), np.zeros((nx, nd))])
 
         from scipy.signal import place_poles
-        # Recommended: slow-ish poles to avoid noisy d_hat. (For nx+nd=2 these are two values.)
-        poles = np.array([0.9, 0.95]) if (nx + nd) == 2 else np.linspace(0.85, 0.95, nx + nd)
+        # slow-ish poles to avoid noisy d_hat. (For nx+nd=2 these are two values.)
+        poles = np.array([0.7, 0.94])
         self.L = place_poles(self.A_hat.T, self.C_hat.T, poles).gain_matrix.T
 
         self.z_hat = np.zeros((nx + nd,))
