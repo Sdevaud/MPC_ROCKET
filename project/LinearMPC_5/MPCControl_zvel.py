@@ -2,6 +2,7 @@ import numpy as np
 from mpt4py import Polyhedron
 import cvxpy as cp
 from control import dlqr
+from scipy.signal import place_poles
 
 from .MPCControl_base import MPCControl_base
 
@@ -18,12 +19,13 @@ class MPCControl_zvel(MPCControl_base):
         Q = 15.0 * np.eye(nx)
         R = 1.0 * np.eye(nu)
 
-        # Real-space input constraints: 40 <= Pavg <= 80
+        # Real-space input constraints
+        #40 <= Pavg <= 80
         M = np.array([[1.0], [-1.0]])
         m = np.array([80.0, -40.0])
         U_real = Polyhedron.from_Hrep(M, m)
 
-        # Very loose state constraints (delta)
+        # Very loose state constraints
         v_max = 100000.0
         F = np.array([[1.0], [-1.0]])
         f = np.array([v_max, v_max])
@@ -34,13 +36,12 @@ class MPCControl_zvel(MPCControl_base):
 
         X = Polyhedron.from_Hrep(X_real.A, X_real.b - X_real.A @ xs)
 
-        # Terminal weight only (no terminal set in Part 5.1)
+        # Terminal weight only (no terminal set)
         _, Qf, _ = dlqr(A, B, Q, R)
 
-        # Estimator
         self.setup_estimator()
 
-        # Variables/parameters (delta)
+        # Variables in delta space
         self.dx_var = cp.Variable((nx, N + 1), name="dx")
         self.du_var = cp.Variable((nu, N), name="du")
         self.dx0_var = cp.Parameter((nx,), name="dx0")
@@ -49,14 +50,13 @@ class MPCControl_zvel(MPCControl_base):
         # Disturbance estimate parameter, used for input cancellation and constraints
         self.d_var = cp.Parameter((nu,), name="d")
 
-        # Cost
+        #Cost function in delta space
         cost = 0
         for k in range(N):
             cost += cp.quad_form(self.dx_var[:, k] - self.dx_ref_var, Q)
             cost += cp.quad_form(self.du_var[:, k], R)
         cost += cp.quad_form(self.dx_var[:, -1] - self.dx_ref_var, Qf)
 
-        # Constraints
         constraints = []
         constraints += [self.dx_var[:, 0] == self.dx0_var]
 
@@ -66,7 +66,7 @@ class MPCControl_zvel(MPCControl_base):
 
         constraints += [X.A @ self.dx_var[:, :-1] <= X.b.reshape(-1, 1)]
 
-        # Applied input is u_apply = us + du - d_hat -> must satisfy 40..80
+        # Applied input is u_apply = us + du - d_hat must satisfy 40-80
         d_col = cp.reshape(self.d_var, (nu, 1), order="F")
         u_apply = self.du_var + self.us.reshape(-1, 1) - d_col
         constraints += [U_real.A @ u_apply <= U_real.b.reshape(-1, 1)]
@@ -80,19 +80,18 @@ class MPCControl_zvel(MPCControl_base):
         u_prev_scalar = float(np.atleast_1d(self.u_prev)[0])
         is_sat = (u_prev_scalar <= self.u_min + self.sat_eps) or (u_prev_scalar >= self.u_max - self.sat_eps)
 
-        # Measurement in delta coords
         dx_meas = x0 - self.xs
 
         # Estimator uses the actually applied delta input: u_delta_applied = u_prev - us
         du_applied_prev = self.u_prev - self.us
         self.update_estimator(dx_meas, du_applied_prev, freeze_d=is_sat)
 
-        # Use estimated state (delta) and estimated disturbance in MPC
+        # Use estimated state and estimated disturbance in MPC
         dx_hat = self.z_hat[: self.nx].reshape(-1)
         self.dx0_var.value = dx_hat
         self.d_var.value = self.d_estimate
 
-        # MPC reference (delta)
+        # MPC reference
         x_ref = self.xs if x_target is None else np.asarray(x_target).reshape(-1)
         self.dx_ref_var.value = (x_ref - self.xs)
 
@@ -108,7 +107,7 @@ class MPCControl_zvel(MPCControl_base):
         dx_traj = self.dx_var.value
         du_traj = self.du_var.value
 
-        # Real-space trajectories
+        # Convert back to real space
         x_traj = dx_traj + self.xs.reshape(-1, 1)
 
         # Apply cancellation in the returned input trajectory
@@ -137,7 +136,6 @@ class MPCControl_zvel(MPCControl_base):
         self.B_hat = np.vstack([self.B, np.zeros((nd, nu))])
         self.C_hat = np.hstack([np.eye(nx), np.zeros((nx, nd))])
 
-        from scipy.signal import place_poles
         poles = np.array([0.83, 0.9])
         self.L = place_poles(self.A_hat.T, self.C_hat.T, poles).gain_matrix.T
 

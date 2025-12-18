@@ -93,6 +93,6 @@ class MPCControl_zvel(MPCControl_base):
 
         #Convert back to real space
         x_traj = dx_traj + self.xs.reshape(-1, 1)
-        u_traj = du_traj + self.us.reshape(-1, 1)   # <-- ensures Pavg is 40..80 in real space
+        u_traj = du_traj + self.us.reshape(-1, 1)
         u0 = u_traj[:, 0]
         return u0, x_traj, u_traj
