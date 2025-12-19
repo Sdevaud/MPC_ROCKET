@@ -75,8 +75,8 @@ class NmpcCtrl:
 
         # ---- cost function ----
         Q = np.diag([
-            1, 1, 1,          # angular rates
-            10, 10, 5,        # angles
+            10, 10, 100,          # angular rates
+            10, 10, 100,        # angles
             5, 5, 10,         # velocities
             50, 50, 100       # positions
         ])
