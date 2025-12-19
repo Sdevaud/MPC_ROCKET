@@ -13,7 +13,7 @@ class NmpcCtrl:
 
 
 
-    def __init__(self, rocket, H, xs, us, N=40):
+    def __init__(self, rocket, Ts, xs, us, N):
         """
         Hint: As in our NMPC exercise, you can evaluate the dynamics of the rocket using 
             CASADI variables x and u via the call rocket.f_symbolic(x,u).
@@ -21,7 +21,7 @@ class NmpcCtrl:
         """        
         # symbolic dynamics f(x,u) from rocket
         self.rocket = rocket
-        self.H = H
+        self.Ts = Ts
         self.N = N
         self.nx = np.size(xs)
         self.nu = np.size(us)
@@ -37,7 +37,7 @@ class NmpcCtrl:
         nx = self.nx
         nu = self.nu
         N = self.N
-        H = self.H
+        Ts = self.Ts
 
         opti = ca.Opti()
 
@@ -56,7 +56,7 @@ class NmpcCtrl:
         for k in range(N):
 
             # Euler discretization
-            x_next = self.X[:, k] + H * self.f(self.X[:, k], self.U[:, k])
+            x_next = self.X[:, k] + Ts * self.f(self.X[:, k], self.U[:, k])
             opti.subject_to(self.X[:, k + 1] == x_next)
 
             # satate constraint |z| > 0 and |beta| < 80 deg
@@ -66,7 +66,7 @@ class NmpcCtrl:
             # input constraints
             opti.subject_to(opti.bounded(-delta_max, self.U[0, k], delta_max))
             opti.subject_to(opti.bounded(-delta_max, self.U[1, k], delta_max))
-            opti.subject_to(opti.bounded(10.0, self.U[2, k], 90.0))
+            opti.subject_to(opti.bounded(40.0, self.U[2, k], 80.0))
             opti.subject_to(opti.bounded(-20.0, self.U[3, k], 20.0))
 
         # terminal constraints
@@ -75,14 +75,14 @@ class NmpcCtrl:
 
         # ---- cost function ----
         Q = np.diag([
-            1, 1, 1,          # angular rates
+            0.5, 0.5, 0.5,          # angular rates
             10, 10, 5,        # angles
             5, 5, 10,         # velocities
-            50, 50, 100       # positions
+            110, 110, 110       # positions
         ])
 
         R = np.diag([
-            5, 5,             # gimbal angles
+            15, 15,             # gimbal angles
             0.1,              # average thrust
             0.1               # thrust difference
         ])
@@ -123,6 +123,6 @@ class NmpcCtrl:
         u0 = u_ol[:, 0]
 
         # time vector
-        t_ol = t0 + self.H * np.arange(self.N + 1)
+        t_ol = t0 + self.Ts * np.arange(self.N + 1)
 
         return u0, x_ol, u_ol, t_ol
