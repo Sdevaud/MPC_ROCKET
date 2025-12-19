@@ -66,7 +66,7 @@ class NmpcCtrl:
             # input constraints
             opti.subject_to(opti.bounded(-delta_max, self.U[0, k], delta_max))
             opti.subject_to(opti.bounded(-delta_max, self.U[1, k], delta_max))
-            opti.subject_to(opti.bounded(40.0, self.U[2, k], 80.0))
+            opti.subject_to(opti.bounded(10.0, self.U[2, k], 90.0))
             opti.subject_to(opti.bounded(-20.0, self.U[3, k], 20.0))
 
         # terminal constraints
@@ -75,16 +75,16 @@ class NmpcCtrl:
 
         # ---- cost function ----
         Q = np.diag([
-            0.5, 0.5, 0.5,          # angular rates
+            1, 1, 1,          # angular rates
             10, 10, 5,        # angles
             5, 5, 10,         # velocities
-            110, 110, 110       # positions
+            50, 50, 100       # positions
         ])
 
         R = np.diag([
-            15, 15,             # gimbal angles
+            5, 5,             # gimbal angles
             0.1,              # average thrust
-            0.1               # thrust difference
+            0.1 
         ])
 
         P = Q  # terminal cost (simple but effective)
