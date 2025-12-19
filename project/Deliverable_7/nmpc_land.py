@@ -75,14 +75,14 @@ class NmpcCtrl:
 
         # ---- cost function ----
         Q = np.diag([
-            10, 10, 100,          # angular rates
+            10, 10, 10,          # angular rates
             10, 10, 100,        # angles
-            5, 5, 10,         # velocities
-            50, 50, 100       # positions
+            10, 10, 10,         # velocities
+            70, 70, 100       # positions
         ])
 
         R = np.diag([
-            5, 5,             # gimbal angles
+            50, 50,             # gimbal angles
             0.1,              # average thrust
             0.1 
         ])
