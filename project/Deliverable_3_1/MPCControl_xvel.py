@@ -2,13 +2,15 @@ import numpy as np
 from mpt4py import Polyhedron
 import cvxpy as cp
 from control import dlqr
+import matplotlib.pyplot as plt
+
 
 from .MPCControl_base import MPCControl_base
 
 
-class MPCControl_zvel(MPCControl_base):
-    x_ids: np.ndarray = np.array([8])  # [vz]
-    u_ids: np.ndarray = np.array([2])  # Pavg
+class MPCControl_xvel(MPCControl_base):
+    x_ids: np.ndarray = np.array([1, 4, 6])   # [wy, beta, vx]
+    u_ids: np.ndarray = np.array([1])         # delta2
 
     def _setup_controller(self) -> None:
         A, B = self.A, self.B
@@ -19,15 +21,15 @@ class MPCControl_zvel(MPCControl_base):
         R = 1.0 * np.eye(nu)
 
         #Real space constraints
-        #40 <= Pavg <= 80
+        #|delta2| <= 0.26
         M = np.array([[1.0], [-1.0]])
-        m = np.array([80.0, -40.0])
+        m = np.array([0.26, 0.26])
         U_real = Polyhedron.from_Hrep(M, m)
 
-        #Need a finite state set for terminal invariant computation so we set very loose constraints
-        v_max = 100000.
-        F = np.array([[1.0], [-1.0]])
-        f = np.array([v_max, v_max])
+        #|beta| <= 0.1745
+        F = np.array([[0.0, 1.0, 0.0],
+                      [0.0, -1.0, 0.0]])
+        f = np.array([0.1745, 0.1745])
         X_real = Polyhedron.from_Hrep(F, f)
 
         #Delta space constraints
@@ -44,18 +46,38 @@ class MPCControl_zvel(MPCControl_base):
         KU = Polyhedron.from_Hrep(U.A @ K, U.b)
         O_inf = self.max_invariant_set(A_cl, X.intersect(KU))
 
+        #Plotting the terminal set
+        fig, axs = plt.subplots(1, 3, figsize=(12, 4))
+
+        O_inf.projection(dims=(0,1)).plot(axs[0], color='gold')
+        axs[0].set_xlabel(r'$\Delta w_y$')
+        axs[0].set_ylabel(r'$\Delta \beta$')
+        axs[0].set_title(r'Terminal Set Projection $(\Delta w_y,\Delta \beta)$')
+
+        O_inf.projection(dims=(0,2)).plot(axs[1], color='gold')
+        axs[1].set_xlabel(r'$\Delta w_y$')
+        axs[1].set_ylabel(r'$\Delta v_x$')
+        axs[1].set_title(r'Terminal Set Projection $(\Delta w_y,\Delta v_x)$')
+
+        O_inf.projection(dims=(1,2)).plot(axs[2], color='gold')
+        axs[2].set_xlabel(r'$\Delta \beta$')
+        axs[2].set_ylabel(r'$\Delta v_x$')
+        axs[2].set_title(r'Terminal Set Projection $(\Delta \beta,\Delta v_x)$')
+
+        plt.tight_layout()
+        plt.show()
+
         #Variables in delta space
         self.dx_var = cp.Variable((nx, N + 1), name="dx")
         self.du_var = cp.Variable((nu, N), name="du")
         self.dx0_var = cp.Parameter((nx,), name="dx0")
-        self.dx_ref_var = cp.Parameter((nx,), name="dx_ref")
 
         #Cost function in delta space
         cost = 0
         for k in range(N):
-            cost += cp.quad_form(self.dx_var[:, k]- self.dx_ref_var, Q)
+            cost += cp.quad_form(self.dx_var[:, k], Q)
             cost += cp.quad_form(self.du_var[:, k], R)
-        cost += cp.quad_form(self.dx_var[:, -1]- self.dx_ref_var, Qf)
+        cost += cp.quad_form(self.dx_var[:, -1], Qf)
 
         constraints = []
         constraints += [self.dx_var[:, 0] == self.dx0_var]
@@ -71,15 +93,6 @@ class MPCControl_zvel(MPCControl_base):
         dx0 = x0 - self.xs
         self.dx0_var.value = dx0
 
-        if x_target is None:
-            x_ref = self.xs
-        else:
-            x_target = np.asarray(x_target).reshape(-1)
-            x_ref = x_target
-
-        dx_ref = x_ref - self.xs
-        self.dx_ref_var.value = dx_ref
-
         self.ocp.solve(solver=cp.PIQP)
 
         if self.ocp.status not in (cp.OPTIMAL, cp.OPTIMAL_INACCURATE):
@@ -91,8 +104,8 @@ class MPCControl_zvel(MPCControl_base):
         dx_traj = self.dx_var.value
         du_traj = self.du_var.value
 
-        #Convert back to real space
+        #Convert back to real space from delta space
         x_traj = dx_traj + self.xs.reshape(-1, 1)
-        u_traj = du_traj + self.us.reshape(-1, 1)   # <-- ensures Pavg is 40..80 in real space
+        u_traj = du_traj + self.us.reshape(-1, 1)
         u0 = u_traj[:, 0]
         return u0, x_traj, u_traj

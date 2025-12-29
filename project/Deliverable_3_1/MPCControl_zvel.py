@@ -2,37 +2,33 @@ import numpy as np
 from mpt4py import Polyhedron
 import cvxpy as cp
 from control import dlqr
+import matplotlib.pyplot as plt
 
 from .MPCControl_base import MPCControl_base
 
 
-class MPCControl_roll(MPCControl_base):
-    x_ids: np.ndarray = np.array([2, 5])  # [wz, gamma]
-    u_ids: np.ndarray = np.array([3])     # Pdiff
+class MPCControl_zvel(MPCControl_base):
+    x_ids: np.ndarray = np.array([8])  # [vz]
+    u_ids: np.ndarray = np.array([2])  # Pavg
 
     def _setup_controller(self) -> None:
         A, B = self.A, self.B
         N = self.N
         nx, nu = self.nx, self.nu
 
-        #Q = 10.0 * np.eye(nx)
-        Q = np.diag([10, 1])
+        Q = 50.0 * np.eye(nx)
         R = 1.0 * np.eye(nu)
 
-        #Real input constraints
-        #|Pdiff| <= 20
+        #Real space constraints
+        #40 <= Pavg <= 80
         M = np.array([[1.0], [-1.0]])
-        m = np.array([20.0, 20.0])
+        m = np.array([80.0, -40.0])
         U_real = Polyhedron.from_Hrep(M, m)
 
         #Need a finite state set for terminal invariant computation so we set very loose constraints
-        wz_max = 100000.
-        gamma_max = 10.
-        F = np.array([[1.0, 0.0],
-                      [-1.0, 0.0],
-                      [0.0, 1.0],
-                      [0.0, -1.0]])
-        f = np.array([wz_max, wz_max, gamma_max, gamma_max])
+        v_max = 100000.
+        F = np.array([[1.0], [-1.0]])
+        f = np.array([v_max, v_max])
         X_real = Polyhedron.from_Hrep(F, f)
 
         #Delta space constraints
@@ -49,18 +45,35 @@ class MPCControl_roll(MPCControl_base):
         KU = Polyhedron.from_Hrep(U.A @ K, U.b)
         O_inf = self.max_invariant_set(A_cl, X.intersect(KU))
 
+        # Extract interval directly from 1D polyhedron for plotting
+        A_inf = O_inf.A.reshape(-1)
+        b_inf = O_inf.b.reshape(-1)
+        xmin = np.max(b_inf[A_inf < 0] / A_inf[A_inf < 0])
+        xmax = np.min(b_inf[A_inf > 0] / A_inf[A_inf > 0])
+        #Plot terminal set interval
+        fig, ax = plt.subplots(figsize=(6, 2.5))
+
+        ax.hlines(0, xmin, xmax, linewidth=6, color='r')
+        ax.plot([xmin, xmax], [0, 0], 'o', color='r')
+
+        ax.set_xlabel(r'$\Delta v_z$')
+        ax.set_yticks([])
+        ax.set_title(r'Terminal Set $\mathcal{X}_f$ for $\Delta v_z$')
+
+        plt.tight_layout()
+        plt.show()
+
         #Variables in delta space
         self.dx_var = cp.Variable((nx, N + 1), name="dx")
         self.du_var = cp.Variable((nu, N), name="du")
         self.dx0_var = cp.Parameter((nx,), name="dx0")
-        self.dx_ref_var = cp.Parameter((nx,), name="dx_ref")
 
         #Cost function in delta space
         cost = 0
         for k in range(N):
-            cost += cp.quad_form(self.dx_var[:, k]- self.dx_ref_var, Q)
+            cost += cp.quad_form(self.dx_var[:, k], Q)
             cost += cp.quad_form(self.du_var[:, k], R)
-        cost += cp.quad_form(self.dx_var[:, -1]- self.dx_ref_var, Qf)
+        cost += cp.quad_form(self.dx_var[:, -1], Qf)
 
         constraints = []
         constraints += [self.dx_var[:, 0] == self.dx0_var]
@@ -76,15 +89,6 @@ class MPCControl_roll(MPCControl_base):
         dx0 = x0 - self.xs
         self.dx0_var.value = dx0
 
-        if x_target is None:
-            x_ref = self.xs
-        else:
-            x_target = np.asarray(x_target).reshape(-1)
-            x_ref = x_target
-
-        dx_ref = x_ref - self.xs
-        self.dx_ref_var.value = dx_ref
-
         self.ocp.solve(solver=cp.PIQP)
 
         if self.ocp.status not in (cp.OPTIMAL, cp.OPTIMAL_INACCURATE):
@@ -96,7 +100,7 @@ class MPCControl_roll(MPCControl_base):
         dx_traj = self.dx_var.value
         du_traj = self.du_var.value
 
-        #Convert back to real space
+        #Convert back to real space from delta space
         x_traj = dx_traj + self.xs.reshape(-1, 1)
         u_traj = du_traj + self.us.reshape(-1, 1)
         u0 = u_traj[:, 0]

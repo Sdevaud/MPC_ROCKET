@@ -2,6 +2,8 @@ import numpy as np
 from mpt4py import Polyhedron
 import cvxpy as cp
 from control import dlqr
+import matplotlib.pyplot as plt
+
 
 from .MPCControl_base import MPCControl_base
 
@@ -43,6 +45,28 @@ class MPCControl_yvel(MPCControl_base):
         A_cl = A + B @ K
         KU = Polyhedron.from_Hrep(U.A @ K, U.b)
         O_inf = self.max_invariant_set(A_cl, X.intersect(KU))
+
+        # Plotting the terminal set
+        fig, axs = plt.subplots(1, 3, figsize=(12, 4))
+
+        O_inf.projection(dims=(0, 1)).plot(axs[0])
+        axs[0].set_xlabel(r'$\Delta w_x$')
+        axs[0].set_ylabel(r'$\Delta \alpha$')
+        axs[0].set_title(r'Terminal Set Projection $(\Delta w_x,\Delta \alpha)$')
+
+        O_inf.projection(dims=(0, 2)).plot(axs[1])
+        axs[1].set_xlabel(r'$\Delta w_x$')
+        axs[1].set_ylabel(r'$\Delta v_y$')
+        axs[1].set_title(r'Terminal Set Projection $(\Delta w_x,\Delta v_y)$')
+
+        O_inf.projection(dims=(1, 2)).plot(axs[2])
+        axs[2].set_xlabel(r'$\Delta \alpha$')
+        axs[2].set_ylabel(r'$\Delta v_y$')
+        axs[2].set_title(r'Terminal Set Projection $(\Delta \alpha,\Delta v_y)$')
+
+        plt.tight_layout()
+        plt.show()
+
 
         #Variables in delta space
         self.dx_var = cp.Variable((nx, N + 1), name="dx")

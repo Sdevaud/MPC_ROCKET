@@ -6,28 +6,32 @@ from control import dlqr
 from .MPCControl_base import MPCControl_base
 
 
-class MPCControl_xvel(MPCControl_base):
-    x_ids: np.ndarray = np.array([1, 4, 6])   # [wy, beta, vx]
-    u_ids: np.ndarray = np.array([1])         # delta2
+class MPCControl_roll(MPCControl_base):
+    x_ids: np.ndarray = np.array([2, 5])  # [wz, gamma]
+    u_ids: np.ndarray = np.array([3])     # Pdiff
 
     def _setup_controller(self) -> None:
         A, B = self.A, self.B
         N = self.N
         nx, nu = self.nx, self.nu
 
-        Q = 10.0 * np.eye(nx)
+        Q = np.diag([10, 1])
         R = 1.0 * np.eye(nu)
 
-        #Real space constraints
-        #|delta2| <= 0.26
+        #Real input constraints
+        #|Pdiff| <= 20
         M = np.array([[1.0], [-1.0]])
-        m = np.array([0.26, 0.26])
+        m = np.array([20.0, 20.0])
         U_real = Polyhedron.from_Hrep(M, m)
 
-        #|beta| <= 0.1745
-        F = np.array([[0.0, 1.0, 0.0],
-                      [0.0, -1.0, 0.0]])
-        f = np.array([0.1745, 0.1745])
+        #Need a finite state set for terminal invariant computation so we set very loose constraints
+        wz_max = 100000.
+        gamma_max = 10.
+        F = np.array([[1.0, 0.0],
+                      [-1.0, 0.0],
+                      [0.0, 1.0],
+                      [0.0, -1.0]])
+        f = np.array([wz_max, wz_max, gamma_max, gamma_max])
         X_real = Polyhedron.from_Hrep(F, f)
 
         #Delta space constraints
@@ -48,13 +52,14 @@ class MPCControl_xvel(MPCControl_base):
         self.dx_var = cp.Variable((nx, N + 1), name="dx")
         self.du_var = cp.Variable((nu, N), name="du")
         self.dx0_var = cp.Parameter((nx,), name="dx0")
+        self.dx_ref_var = cp.Parameter((nx,), name="dx_ref")
 
         #Cost function in delta space
         cost = 0
         for k in range(N):
-            cost += cp.quad_form(self.dx_var[:, k], Q)
+            cost += cp.quad_form(self.dx_var[:, k]- self.dx_ref_var, Q)
             cost += cp.quad_form(self.du_var[:, k], R)
-        cost += cp.quad_form(self.dx_var[:, -1], Qf)
+        cost += cp.quad_form(self.dx_var[:, -1]- self.dx_ref_var, Qf)
 
         constraints = []
         constraints += [self.dx_var[:, 0] == self.dx0_var]
@@ -70,6 +75,15 @@ class MPCControl_xvel(MPCControl_base):
         dx0 = x0 - self.xs
         self.dx0_var.value = dx0
 
+        if x_target is None:
+            x_ref = self.xs
+        else:
+            x_target = np.asarray(x_target).reshape(-1)
+            x_ref = x_target
+
+        dx_ref = x_ref - self.xs
+        self.dx_ref_var.value = dx_ref
+
         self.ocp.solve(solver=cp.PIQP)
 
         if self.ocp.status not in (cp.OPTIMAL, cp.OPTIMAL_INACCURATE):
@@ -81,7 +95,7 @@ class MPCControl_xvel(MPCControl_base):
         dx_traj = self.dx_var.value
         du_traj = self.du_var.value
 
-        #Convert back to real space from delta space
+        #Convert back to real space
         x_traj = dx_traj + self.xs.reshape(-1, 1)
         u_traj = du_traj + self.us.reshape(-1, 1)
         u0 = u_traj[:, 0]

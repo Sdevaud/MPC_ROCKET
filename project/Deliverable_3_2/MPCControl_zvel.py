@@ -6,32 +6,28 @@ from control import dlqr
 from .MPCControl_base import MPCControl_base
 
 
-class MPCControl_roll(MPCControl_base):
-    x_ids: np.ndarray = np.array([2, 5])  # [wz, gamma]
-    u_ids: np.ndarray = np.array([3])     # Pdiff
+class MPCControl_zvel(MPCControl_base):
+    x_ids: np.ndarray = np.array([8])  # [vz]
+    u_ids: np.ndarray = np.array([2])  # Pavg
 
     def _setup_controller(self) -> None:
         A, B = self.A, self.B
         N = self.N
         nx, nu = self.nx, self.nu
 
-        Q = 10.0 * np.eye(nx)
+        Q = 50.0 * np.eye(nx)
         R = 1.0 * np.eye(nu)
 
-        #Real input constraints
-        #|Pdiff| <= 20
+        #Real space constraints
+        #40 <= Pavg <= 80
         M = np.array([[1.0], [-1.0]])
-        m = np.array([20.0, 20.0])
+        m = np.array([80.0, -40.0])
         U_real = Polyhedron.from_Hrep(M, m)
 
         #Need a finite state set for terminal invariant computation so we set very loose constraints
-        wz_max = 100000.
-        gamma_max = 10.
-        F = np.array([[1.0, 0.0],
-                      [-1.0, 0.0],
-                      [0.0, 1.0],
-                      [0.0, -1.0]])
-        f = np.array([wz_max, wz_max, gamma_max, gamma_max])
+        v_max = 100000.
+        F = np.array([[1.0], [-1.0]])
+        f = np.array([v_max, v_max])
         X_real = Polyhedron.from_Hrep(F, f)
 
         #Delta space constraints
@@ -97,6 +93,6 @@ class MPCControl_roll(MPCControl_base):
 
         #Convert back to real space
         x_traj = dx_traj + self.xs.reshape(-1, 1)
-        u_traj = du_traj + self.us.reshape(-1, 1)
+        u_traj = du_traj + self.us.reshape(-1, 1)   # <-- ensures Pavg is 40..80 in real space
         u0 = u_traj[:, 0]
         return u0, x_traj, u_traj

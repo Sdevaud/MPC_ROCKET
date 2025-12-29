@@ -2,6 +2,8 @@ import numpy as np
 from mpt4py import Polyhedron
 import cvxpy as cp
 from control import dlqr
+import matplotlib.pyplot as plt
+
 
 from .MPCControl_base import MPCControl_base
 
@@ -15,7 +17,7 @@ class MPCControl_roll(MPCControl_base):
         N = self.N
         nx, nu = self.nx, self.nu
 
-        Q = 10.0 * np.eye(nx)
+        Q = 75.0 * np.eye(nx)
         R = 1.0 * np.eye(nu)
 
        #Real space constraints
@@ -47,6 +49,19 @@ class MPCControl_roll(MPCControl_base):
         A_cl = A + B @ K
         KU = Polyhedron.from_Hrep(U.A @ K, U.b)
         O_inf = self.max_invariant_set(A_cl, X.intersect(KU))
+
+        #Plot terminal set
+        fig, ax = plt.subplots(figsize=(4, 4))
+
+        O_inf.plot(ax, color='seagreen')
+
+        ax.set_xlabel(r'$\Delta w_z$')
+        ax.set_ylabel(r'$\Delta \gamma$')
+        ax.set_title(r'Terminal Set $\mathcal{X}_f$ for Roll Dynamics')
+        ax.set_aspect('equal')
+
+        plt.tight_layout()
+        plt.show()
 
         #Variables in delta space
         self.dx_var = cp.Variable((nx, N + 1), name="dx")
