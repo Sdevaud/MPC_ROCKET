@@ -6,19 +6,21 @@ import cvxpy as cp
 import matplotlib.pyplot as plt
 
 
-class MPCControl_z(MPCControl_base):
-    x_ids = np.array([8, 11])   # [vz, z]
-    u_ids = np.array([2])       # thrust
+class MPCControl_x(MPCControl_base):
+    x_ids: np.ndarray = np.array([1, 4, 6, 9])
+    u_ids: np.ndarray = np.array([1])
 
     def _setup_controller(self) -> None:
+        #################################################
+        # YOUR CODE HERE
 
         nx, nu, N = self.nx, self.nu, self.N
         A, B = self.A, self.B
         xs, us, = self.xs, self.us
 
         # ===== LQR feedback for tube =====
-        Q = np.diag([10.0, 20.0])
-        R = 0.5 * np.eye(1)
+        Q = np.diag([20.0, 100.0, 20.0, 20.0])
+        R = 0.1 * np.eye(1)
 
         K, Qf, _ = dlqr(A, B, Q, R)
         K = -K
@@ -26,21 +28,11 @@ class MPCControl_z(MPCControl_base):
         self.K = K
 
         # ===== Set Constraint =====
-        X, U, W = self.generate_constraint(xs, us, B)
-        self.W = W
-
-        # ===== Generate Set =====
-        E = self.min_robust_invariant_set(A_cl, W)
-        X_tilde = X - E
-        KE = E.affine_map(K)
-        U_tilde = U - KE
+        X, U = self.generate_constraint(xs, us, B)
 
         # ===== Generate Xf =====
         X_and_KU = X.intersect(Polyhedron.from_Hrep(U.A@K, U.b))
         Xf = self.max_invariant_set(A_cl, X_and_KU)
-
-        X_tilde_and_KU_tilde = X_tilde.intersect(Polyhedron.from_Hrep(U_tilde.A@K, U_tilde.b))
-        Xf_tilde = self.max_invariant_set(A_cl, X_tilde_and_KU_tilde)
 
         # ===== Build cost Function =====
         z_var = cp.Variable((N+1, nx), name='z')
@@ -56,54 +48,42 @@ class MPCControl_z(MPCControl_base):
             cost += cp.quad_form(z_var[i], Q)
             cost += cp.quad_form(v_var[i], R)
         cost += cp.quad_form(z_var[-1], Qf)
+        cost += 200000 * cp.sum_squares(v_var[1:] - v_var[:-1])
 
         constraints = []
-        constraints.append(E.A @ (x0_var - z_var[0]) <= E.b)
+        constraints.append(z_var[0] == x0_var)
         constraints.append(z_var[1:].T == A @ z_var[:-1].T + B @ v_var.T)
-        constraints.append(X_tilde.A @ z_var[:-1].T <= X_tilde.b.reshape(-1, 1))
-        constraints.append(U_tilde.A @ v_var.T <= U_tilde.b.reshape(-1, 1))
-        # constraints.append(Xf_tilde.A @ z_var[-1].T <= Xf_tilde.b.reshape(-1, 1))
+        constraints.append(U.A @ v_var.T <= U.b.reshape(-1, 1))
+        constraints.append(X.A @ z_var[:-1].T <= X.b.reshape(-1, 1))
+        constraints.append(Xf.A @ z_var[-1].T <= Xf.b.reshape(-1, 1))
 
         self.ocp = cp.Problem(cp.Minimize(cost), constraints)
 
+        # YOUR CODE HERE
+        #################################################
 
     def get_u(
-        self, x0: np.ndarray, x_target=None, u_target=None
+        self, x0: np.ndarray, x_target: np.ndarray = None, u_target: np.ndarray = None
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        #################################################
+        # YOUR CODE HERE
 
         dxk = np.asarray(x0).reshape(-1) - np.asarray(self.xs).reshape(-1)
         self.x0_var.value = dxk
         self.ocp.solve(cp.OSQP, warm_start=True, max_iter=200000)
         assert self.ocp.status == cp.OPTIMAL, \
-            f"The tube mpc solver returned status: {self.ocp.status}"
+            f"The nominal x mpc solver returned status: {self.ocp.status}"
 
         dz = np.asarray(self.z_var[0].value).reshape(-1)
         dv = float(self.v_var[0].value)
 
         du = dv + float(self.K @ (dxk - dz))
-        uz = du + float(self.us)
+        ux = du + float(self.us)
 
-        return np.array([uz]), None, None
+        return np.array([ux]), None, None
 
-    
-    @staticmethod
-    def min_robust_invariant_set(A_cl: np.ndarray, W: Polyhedron, max_iter: int = 50) -> Polyhedron:
-        nx = A_cl.shape[0]
-        Omega = W
-        itr = 0
-        A_cl_ith_power = np.eye(nx)
-        while itr <= max_iter:
-            A_cl_ith_power = np.linalg.matrix_power(A_cl, itr)
-            Omega_next = Omega + A_cl_ith_power @ W
-            Omega_next.minHrep()
-            if np.linalg.norm(A_cl_ith_power, ord=2) < 1e-1:
-                print('Minimal robust invariant set computation converged after {0} iterations.'.format(itr))
-                break
-            if itr == max_iter:
-                print('Minimal robust invariant set computation did NOT converge after {0} iterations.'.format(itr))
-            Omega = Omega_next
-            itr += 1
-        return Omega_next
+        # YOUR CODE HERE
+        #################################################
 
     @staticmethod
     def max_invariant_set(A_cl, X: Polyhedron, max_iter=50) -> Polyhedron:
@@ -131,33 +111,33 @@ class MPCControl_z(MPCControl_base):
         us = np.asarray(us).reshape(-1)
         B  = np.asarray(B).reshape(-1, 1)
 
-        vz_min_phys, vz_max_phys = -10.0, 10.0
-        z_min_phys, z_max_phys = 0.0, 15.0
+        wx_min_phys, wx_max_phys = -150.0, 150.0
+        beta_min_phys, beta_max_phys = -np.deg2rad(10), np.deg2rad(10)
+        vx_min_phys, vx_max_phys = -15.0, 15.0
+        x_min_phys, x_max_phys = -10.0, 10.0
         lower_X = np.array([
-            vz_min_phys - xs[0],
-            z_min_phys - xs[1]
+            wx_min_phys - xs[0],
+            beta_min_phys - xs[1],
+            vx_min_phys - xs[2],
+            x_min_phys - xs[3]
         ])
         upper_X = np.array([
-            vz_max_phys - xs[0],
-            z_max_phys - xs[1]
+            wx_max_phys - xs[0],
+            beta_max_phys - xs[1],
+            vx_max_phys - xs[2],
+            x_max_phys - xs[3]
         ])
-        A_X = np.vstack((np.eye(2), -np.eye(2)))
+        A_X = np.vstack((np.eye(4), -np.eye(4)))
         b_X = np.concatenate((upper_X, -lower_X))
         X = Polyhedron.from_Hrep(A=A_X, b=b_X)
 
-        Pavg_min_phys, Pavg_max_phys = 40.0, 80.0
-        Pavg_min = Pavg_min_phys - us[0]
-        Pavg_max = Pavg_max_phys - us[0]
+        delta_phys, delta_max_phys = -np.deg2rad(15), np.deg2rad(15)
+        delta_min = delta_phys - us[0]
+        delta_max = delta_max_phys - us[0]
         A_U = np.vstack((np.eye(1), -np.eye(1)))
-        b_U = np.array([Pavg_max, -Pavg_min])
+        b_U = np.array([delta_max, -delta_min])
         U = Polyhedron.from_Hrep(A=A_U, b=b_U)
 
-        w_min_u, w_max_u = -15.0, 5.0
-        W_u = Polyhedron.from_Hrep(
-            A=np.vstack((np.eye(1), -np.eye(1))),
-            b=np.array([w_max_u, -w_min_u])
-        )
-        W = W_u.affine_map(B)
+        return X, U
 
-        return X, U, W
 

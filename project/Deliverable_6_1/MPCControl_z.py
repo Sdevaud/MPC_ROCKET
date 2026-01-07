@@ -67,6 +67,7 @@ class MPCControl_z(MPCControl_base):
         constraints.append(z_var[1:].T == A @ z_var[:-1].T + B @ v_var.T)
         constraints.append(X_tilde.A @ z_var[:-1].T <= X_tilde.b.reshape(-1, 1))
         constraints.append(U_tilde.A @ v_var.T <= U_tilde.b.reshape(-1, 1))
+        constraints.append(Xf.A @ z_var[-1].T <= Xf.b.reshape(-1, 1))
 
         self.ocp = cp.Problem(cp.Minimize(cost), constraints)
 
@@ -158,7 +159,7 @@ class MPCControl_z(MPCControl_base):
         us = np.asarray(us).reshape(-1)
         B  = np.asarray(B).reshape(-1, 1)
 
-        v_min_phys, v_max_phys = -5.0, 5.0
+        v_min_phys, v_max_phys = -10.0, 10.0
         z_min_phys, z_max_phys = 0.0, 15.0
         lower_X = np.array([
             v_min_phys - xs[0],
