@@ -633,11 +633,11 @@ def constraint_check(rocket, x: np.ndarray, u: np.ndarray) -> bool:
     UBU = np.array([ np.deg2rad(15),  np.deg2rad(15), 80.0,  20.0])  # [dR, dP, Pavg, Pdiff]
 
     LBX = np.array([-np.inf, -np.inf, -np.inf,
-                    -np.deg2rad(10), -np.deg2rad(10), -np.inf,
+                    -np.deg2rad(20), -np.deg2rad(20), -np.inf,
                     -np.inf, -np.inf, -np.inf,
                     -np.inf, -np.inf, 0.0]) # [wx, wy, wz, alpha, beta, gamma, vx, vy, vz, x, y, z]
     UBX = np.array([np.inf,  np.inf,  np.inf,
-                    np.deg2rad(10),  np.deg2rad(10),  np.inf,
+                    np.deg2rad(20),  np.deg2rad(20),  np.inf,
                     np.inf,  np.inf,  np.inf,
                     np.inf,  np.inf, np.inf]) # [wx, wy, wz, alpha, beta, gamma, vx, vy, vz, x, y, z]
     
