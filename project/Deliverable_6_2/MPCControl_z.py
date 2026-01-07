@@ -17,24 +17,13 @@ class MPCControl_z(MPCControl_base):
         xs, us, = self.xs, self.us
 
         # ===== LQR feedback for tube =====
-        Q = np.diag([30.0, 100.0])
-        R = 0.1 * np.eye(1)
+        Q = np.diag([20.0, 40.0])
+        R = 0.2 * np.eye(1)
 
         K, Qf, _ = dlqr(A, B, Q, R)
         K = -K
         A_cl = A + B @ K
-        self.K = -K
-        print("nx : ", nx)
-        print("nu : ", nu)
-        print("N  : ", N)
-        print("xs, us, ", xs, us)
-        print("A  : \n", A)
-        print("B  : \n", B)
-        print("Q  : \n", Q)
-        print("R  : \n", R)
-        print("K  : \n", K)
-        print("Acl : \n", A_cl)
-
+        self.K = K
 
         # ===== eigen value of Acl =====
         eigvals_Acl = np.linalg.eigvals(A_cl)
@@ -110,7 +99,6 @@ class MPCControl_z(MPCControl_base):
         self, x0: np.ndarray, x_target=None, u_target=None
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 
-        print(self.N)
         dxk = np.asarray(x0).reshape(-1) - np.asarray(self.xs).reshape(-1)
         self.x0_var.value = dxk
         self.ocp.solve(cp.OSQP, warm_start=True, max_iter=200000)
@@ -171,8 +159,8 @@ class MPCControl_z(MPCControl_base):
         us = np.asarray(us).reshape(-1)
         B  = np.asarray(B).reshape(-1, 1)
 
-        v_min_phys, v_max_phys = -2.0, 2.0
-        z_min_phys, z_max_phys = 0.0, 12.0
+        v_min_phys, v_max_phys = -5.0, 5.0
+        z_min_phys, z_max_phys = 0.0, 15.0
         lower_X = np.array([
             v_min_phys - xs[0],
             z_min_phys - xs[1]
