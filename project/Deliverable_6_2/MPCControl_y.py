@@ -19,7 +19,7 @@ class MPCControl_y(MPCControl_base):
         xs, us, = self.xs, self.us
 
         # ===== LQR feedback for tube =====
-        Q = np.diag([30.0, 800.0, 30.0, 30.0])
+        Q = np.diag([20.0, 600.0, 30.0, 30.0])
         R = 0.1 * np.eye(1)
 
         K, Qf, _ = dlqr(A, B, Q, R)
@@ -48,7 +48,7 @@ class MPCControl_y(MPCControl_base):
             cost += cp.quad_form(z_var[i], Q)
             cost += cp.quad_form(v_var[i], R)
         cost += cp.quad_form(z_var[-1], Qf)
-        cost += 250000 * cp.sum_squares(v_var[1:] - v_var[:-1])
+        # cost += 250000 * cp.sum_squares(v_var[1:] - v_var[:-1])
 
         constraints = []
         constraints.append(z_var[0] == x0_var)
@@ -112,7 +112,7 @@ class MPCControl_y(MPCControl_base):
         B  = np.asarray(B).reshape(-1, 1)
 
         wy_min_phys, wy_max_phys = -150.0, 150.0
-        alpha_min_phys, alpha_max_phys = -np.deg2rad(10), np.deg2rad(10)
+        alpha_min_phys, alpha_max_phys = -np.deg2rad(20), np.deg2rad(20)
         vy_min_phys, vy_max_phys = -150.0, 150.0
         y_min_phys, y_max_phys = -100.0, 100.0
         lower_X = np.array([
@@ -131,7 +131,7 @@ class MPCControl_y(MPCControl_base):
         b_X = np.concatenate((upper_X, -lower_X))
         X = Polyhedron.from_Hrep(A=A_X, b=b_X)
 
-        delta_phys, delta_max_phys = -np.deg2rad(15), np.deg2rad(15)
+        delta_phys, delta_max_phys = -np.deg2rad(14.99), np.deg2rad(14.99)
         delta_min = delta_phys - us[0]
         delta_max = delta_max_phys - us[0]
         A_U = np.vstack((np.eye(1), -np.eye(1)))
