@@ -477,8 +477,8 @@ class Rocket(RocketBase):
         t_cl = np.zeros((N_cl+1))
         x_cl = np.zeros((12, N_cl+1))
         u_cl = np.zeros((4, N_cl))
-        t_ol = np.zeros((N_ol+1, N_cl+1))
-        x_ol = np.zeros((12, N_ol+1, N_cl+1))
+        t_ol = np.zeros((N_ol+1, N_cl))
+        x_ol = np.zeros((12, N_ol+1, N_cl))
         u_ol = np.zeros((4, N_ol, N_cl))
 
         x_cl[:, 0] = x0  # initial state

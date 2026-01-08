@@ -94,6 +94,22 @@ class MPCControl_z(MPCControl_base):
         plt.legend()
         plt.show()
 
+        fig4, ax4 = plt.subplots(1, 1, figsize=(6, 2))
+        u_tilde_min, u_tilde_max = U_tilde.b[1], U_tilde.b[0]
+        ax4.plot([u_tilde_min, u_tilde_max], [0, 0],
+                'r', linewidth=6, label=r'$\tilde{\mathcal{U}}$')
+        ax4.set_yticks([])
+        ax4.set_xlabel('u')
+        ax4.set_title('Input constraint tightening')
+        ax4.legend()
+        ax4.grid(True)
+        plt.show()
+
+        print("Vertices of U_tilde:")
+        print(f"u_min_tilde = {u_tilde_min:.4f}")
+        print(f"u_max_tilde = {u_tilde_max:.4f}")
+
+
 
     def get_u(
         self, x0: np.ndarray, x_target=None, u_target=None
@@ -170,6 +186,7 @@ class MPCControl_z(MPCControl_base):
         b_X = np.concatenate((upper_X, -lower_X))
         X = Polyhedron.from_Hrep(A=A_X, b=b_X)
 
+        # We just closed a little bit the input constraint to avoid numerical issues
         Pavg_min_phys, Pavg_max_phys = 40.05, 79.95
         Pavg_min = Pavg_min_phys - us[0]
         Pavg_max = Pavg_max_phys - us[0]

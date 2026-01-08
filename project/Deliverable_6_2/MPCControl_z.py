@@ -17,7 +17,7 @@ class MPCControl_z(MPCControl_base):
         xs, us, = self.xs, self.us
 
         # ===== LQR feedback for tube =====
-        Q = np.diag([10.0, 20.0])
+        Q = np.diag([12.0, 20.0])
         R = 0.5 * np.eye(1)
 
         K, Qf, _ = dlqr(A, B, Q, R)
@@ -62,7 +62,7 @@ class MPCControl_z(MPCControl_base):
         constraints.append(z_var[1:].T == A @ z_var[:-1].T + B @ v_var.T)
         constraints.append(X_tilde.A @ z_var[:-1].T <= X_tilde.b.reshape(-1, 1))
         constraints.append(U_tilde.A @ v_var.T <= U_tilde.b.reshape(-1, 1))
-        # constraints.append(Xf_tilde.A @ z_var[-1].T <= Xf_tilde.b.reshape(-1, 1))
+        constraints.append(Xf_tilde.A @ z_var[-1].T <= Xf_tilde.b.reshape(-1, 1))
 
         self.ocp = cp.Problem(cp.Minimize(cost), constraints)
 
@@ -87,7 +87,7 @@ class MPCControl_z(MPCControl_base):
 
     
     @staticmethod
-    def min_robust_invariant_set(A_cl: np.ndarray, W: Polyhedron, max_iter: int = 50) -> Polyhedron:
+    def min_robust_invariant_set(A_cl: np.ndarray, W: Polyhedron, max_iter: int = 30) -> Polyhedron:
         nx = A_cl.shape[0]
         Omega = W
         itr = 0
@@ -99,8 +99,6 @@ class MPCControl_z(MPCControl_base):
             if np.linalg.norm(A_cl_ith_power, ord=2) < 1e-1:
                 print('Minimal robust invariant set computation converged after {0} iterations.'.format(itr))
                 break
-            if itr == max_iter:
-                print('Minimal robust invariant set computation did NOT converge after {0} iterations.'.format(itr))
             Omega = Omega_next
             itr += 1
         return Omega_next

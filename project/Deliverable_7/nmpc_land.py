@@ -55,15 +55,12 @@ class NmpcCtrl:
         # ---- dynamics + constraints ----
         for k in range(N):
 
-            # Euler discretization
             x_next = self.X[:, k] + Ts * self.f(self.X[:, k], self.U[:, k])
             opti.subject_to(self.X[:, k + 1] == x_next)
 
-            # satate constraint |z| > 0 and |beta| < 80 deg
             opti.subject_to(self.X[11, k] >= 0)
             opti.subject_to(opti.bounded(-beta_max, self.X[4, k], beta_max))
 
-            # input constraints
             opti.subject_to(opti.bounded(-delta_max, self.U[0, k], delta_max))
             opti.subject_to(opti.bounded(-delta_max, self.U[1, k], delta_max))
             opti.subject_to(opti.bounded(10.0, self.U[2, k], 90.0))
@@ -87,7 +84,7 @@ class NmpcCtrl:
             0.1 
         ])
 
-        P = Q  # terminal cost (simple but effective)
+        P = Q 
 
         cost = 0
         for k in range(N):
